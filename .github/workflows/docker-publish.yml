@@ -1,0 +1,65 @@
+name: Build and push Docker images
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch: {}
+
+jobs:
+  compose-build-push:
+    name: Build and push Compose images
+    runs-on: ubuntu-latest
+    env:
+      # Required secrets (set these in the repository settings):
+      # - DOCKER_USERNAME: Docker registry username
+      # - DOCKER_PASSWORD: Docker registry password or token
+      # Optional secret:
+      # - DOCKER_REGISTRY: registry host (e.g. docker.io, my.artifactory.example.com)
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+      DOCKER_REGISTRY: ${{ secrets.DOCKER_REGISTRY }}
+      IMAGE_PREFIX: roopam421/inference-server
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set image tag
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          else
+            echo "TAG=${GITHUB_SHA::7}" >> $GITHUB_ENV
+          fi
+
+      - name: Prepare registry value
+        shell: bash
+        run: |
+          REGISTRY="${DOCKER_REGISTRY}"
+          if [ -z "${REGISTRY}" ]; then
+            REGISTRY="docker.io"
+          fi
+          echo "REGISTRY=${REGISTRY}" >> $GITHUB_ENV
+
+      - name: Log in to registry
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ env.DOCKER_USERNAME }}
+          password: ${{ env.DOCKER_PASSWORD }}
+
+      - name: Build services with docker compose
+        env:
+          DOCKER_REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+          TAG: ${{ env.TAG }}
+        run: docker compose -f docker-compose.yml build --parallel model-server gateway
+
+      - name: Push services with docker compose
+        env:
+          DOCKER_REGISTRY: ${{ env.REGISTRY }}
+          IMAGE_PREFIX: ${{ env.IMAGE_PREFIX }}
+          TAG: ${{ env.TAG }}
+        run: docker compose -f docker-compose.yml push model-server gateway

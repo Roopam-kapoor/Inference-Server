@@ -1,6 +1,7 @@
 services:
   model-server:
     build: ./model-server
+    image: ${DOCKER_REGISTRY:-docker.io}/${IMAGE_PREFIX}-model-server:${TAG}
     volumes:
       - ./models/all-MiniLM-L6-v2:/model
     environment:
@@ -10,6 +11,7 @@ services:
 
   gateway:
     build: ./gateway
+    image: ${DOCKER_REGISTRY:-docker.io}/${IMAGE_PREFIX}-gateway:${TAG}
     environment:
       - MODEL_SERVER_URL=${MODEL_SERVER_URL}
       - API_KEY=${API_KEY}
